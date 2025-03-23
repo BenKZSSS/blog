@@ -53,7 +53,7 @@ export const navBarConfig: NavBarConfig = {
 export const profileConfig: ProfileConfig = {
   avatar: 'assets/images/avatar.jpeg',  // Relative to the /src directory. Relative to the /public directory if it starts with '/'
   name: 'Ben',
-  bio: 'print("404: Purpose not found.")',
+  bio: 'to the end of the world',
   links: [
     {
       name: 'GitHub',
