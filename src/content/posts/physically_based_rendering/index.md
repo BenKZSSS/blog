@@ -1,9 +1,9 @@
 ---
 title: Physically Based Rendering
-published: 2025-04-13
+published: 2025-05-13
 description: ''
 image: ''
-tags: [rendering, graphics, realistic, physically_based_rendering, pbr]
+tags: [rendering, graphics, realistic, physically based rendering, pbr]
 category: 'Computer Graphics'
 draft: true 
 lang: 'zh'
@@ -16,8 +16,12 @@ PBR广泛应用之前的渲染方法主要是基于经验的（Empirical）和�
 ![20250511175548](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250511175548.png)
 
 而PBR的目标是通过模拟真实世界中光的传播过程来实现真实感渲染。
+![20250513104519](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513104519.png)
 ![20250511182147](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250511182147.png)
+
 * 参数正确（光源、材质...） + 过程正确（传播...） = 结果正确（真实感结果...）
+![20250513174333](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513174333.png)
+![20250513174427](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513174427.png)
 
 # 光源（Light Source）
 光源是渲染的起点，在基于物理的渲染中，我们就需要从物理学的角度来定义光源。
@@ -56,7 +60,7 @@ XYZ颜色空间是CIE（国际照明委员会）定义的一个颜色空间用�
 对于颜色，通常把亮度（Luminance）和色度（Chromaticity）分开来表示，所以CIE定义了XYZ中的一个平面```X + Y + Z = 1```表示色度（Chromaticity）
 ![20250509111724](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250509111724.png)
 
-RGB空间是电视和显示器使用的颜色空间，用来控制三种颜色的强度来表示颜色，常见的RGB空间有sRGB（Linear）/Rec.709、DCI-P3、ACEScg等，RGB空间与XYZ空间之间可以通过线性变换互相转换，由于显示器的色域（Gamut）有限，所以一般为这些显示设备设计的RGB空间都只能表示XYZ空间中的一部分颜色。
+RGB空间是大部分显示设备用到的空间，用来控制三种颜色的强度来表示颜色，常见的RGB空间有sRGB（Linear）/Rec.709、DCI-P3、ACEScg等，RGB空间与XYZ空间之间可以通过线性变换互相转换，由于显示器的色域（Gamut）有限，所以一般为这些显示设备设计的RGB空间都只能表示XYZ空间中的一部分颜色。
 ![20250509111756](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250509111756.png)
 
 ### 色温（Color Temperature）
@@ -97,71 +101,227 @@ RGB空间是电视和显示器使用的颜色空间，用来控制三种颜色�
     ![20250512233345](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512233345.png)
 
 ## UE5
-* TODO
+### Directional Light
+* Intensity：
+    ![20250513145657](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513145657.png)
+* Color：
+  * RGB
+  * HSV
+  * Temperature
+    ![20250513145842](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513145842.png)
+* IES Profile：
+  ![20250513150440](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513150440.png)
+
+### Point Light
+* Intensity：
+  * Unitless，不推荐
+  * Candela
+  * Lumens
+  * EV，不推荐
+    ![20250513150017](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513150017.png)
+* Color：同上
+
+### Spot Light
+跟Point Light类似，多了角度的设定
+
+### Rect Light
+* Intensity：同Point Light
+* Color：同Point Light
+* Source Texture：
+![20250513154635](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513154635.png)
 
 # 材质（Material）
 当光传播到物体表面时，这个时候物体表面的材质就会影响光的传播，这会决定光是被反射、折射还是吸收，进而决定相机或者人眼看到该物体时候的表现，比如说一个物体如果吸收了所有的光，那么我们看到的就是黑色的物体；如果一个物体反射了所有的光，那么我们看到的就是白色的物体；如果物体只吸收部分频率的光，那么这个物体看起来就会有颜色，所以材质是PBR中非常重要的一个部分。
 
 ## BxDF
-BxDF是一系列函数的统称，用来描述光在物体表面传播的方式
+BxDF是一系列函数的统称，用来描述光在物体表面传播的方式：
+![20250513100438](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513100438.png)
 
 ### BRDF
 BRDF（Bidirectional Reflectance Distribution Function）是双向反射分布函数，用来描述光在物体表面反射的方式。BRDF主要考虑光在很小区域内的反射情况，这其实也是现实中绝大多数材质的表现方式，所以BRDF是PBR中最常用的一个函数。
-![20250512162541](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512162541.png)
-![20250512162605](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512162605.png)
+
+光接触到物体表面，一部分光会经由外表面反射出去，另一部分光会进入物体内部进行散射，最后再从表面反射出去，BRDF所描述的材质，散射的光是在一个非常小的区域内进行的，小到我们可以认为整个过程是在一个点上进行的
 ![20250512162658](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512162658.png)
-![20250512162727](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512162727.png)
+
+金属材质，进入物体内部的光会被吸收
+![20250512162541](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512162541.png)
+
+非金属材质，进入物体内部的光会被散射再出来
+![20250512162605](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512162605.png)
+
+所以BRDF一般分为Diffuse和Specular两种类型，Specular用来描述表面反射的光，Diffuse用来描述进入物体内部之后的散射出去的光。
 ![20250512162752](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512162752.png)
 
 #### Diffuse
-![20250512163247](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512163247.png)
-
+Diffuse因为是进入物体内部散射之后的光，这个散射的过程是非常复杂的，有很强的随机性，所以一般情况下从统计学的角度来看，最终散射出来的光是均匀分布的，比较常用的模型是Lambertian模型
 ##### Lambertian
 ![20250512163306](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512163306.png)
-![20250512163510](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512163510.png)
 
 #### Specular
+Specular是表面反射的光，表面反射的光是比较有方向性的，一般需要一些特定的数学模型来描述
 
 ##### Microfacet
+微表面是假定物体表面是由很多微小的平面组成的，这些微小的平面是随机分布的，通过数学模型来描述这些微小的平面对于光的反射情况
 ![slide-33](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/slide-33.jpg)
 
 #### Hair
+毛发材质由于其微观结构的特殊性，微表面模型并不能很好地描述毛发的反射情况，所以需要一些特定的模型来描述毛发的反射情况
 ![An-illustration-of-the-geometry-of-our-hair-scattering-model-The](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/An-illustration-of-the-geometry-of-our-hair-scattering-model-The.png)
 
 #### Cloth/Fabric
+布料材质也是类似的情况，其微观结构也是由很多有规律的编织物组成的，所以需要一些特定的模型来描述布料的反射情况
+![20250513112450](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513112450.png)
 
 ### Subsurface Scattering
+次表面散射是指光在物体表面进入物体内部之后的散射，之所以区别于BRDF，是因为光在这类材质中散射传播的路径比较长，大于了我们的渲染的尺度，也就是说我们不能假定这个过程是在一个点上进行的，而是需要考虑光在物体内部的传播路径
 ![20250512182217](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250512182217.png)
 
 ## UE5
-* TODO
+### Shading Model
+* Default Lit：Microfacet GGX Specular + Lambertian Diffuse
+  * Base Color：Reflectance，反射率，表示物体表面反射的光的强度
+  * Metallic：金属度，会影响Specular跟Diffuse的分布
+  * Roughness：粗糙度影响微表面法线的分布
+  * Specular：基本上默认值是符合物理的，但提供更多的自由度
+    ![20250513160901](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513160901.png)
+    ![20250513161324](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513161324.png)
+* Subsurface/Preintegrated Skin/Subsurface Profile：Subsurface Scattering
+* Hair
+* Cloth
+* Eye
+* Clear Coat
+* Foliage
+* Translucent
+### Substrate
+![20250513155217](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513155217.png)
 
-# 参与介质（Participating Media）
-![20250513001147](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001147.png)
-![20250513001442](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001442.png)
-![20250513001502](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001502.png)
-![20250513001544](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001544.png)
-## 物理（Physics）
-![20250513001757](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001757.png)
+# 几何（Geometry）
 ## UE5
-* TODO
+* Nanite
 
-# 遮挡（Occlusion）
-## Direct Lighting
-### Shadow
-## Indirect Lighting
-### Ambient Occlusion
+# 直接/局部光照（Direct/Local Illumination）
+局部光照是指光源发出的光经过物体表面反射后，直接到达相机的光照结果
+![20250513104048](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513104048.png)
 ## UE5
+* Mega Lights
+![20250513161657](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513161657.png)
 
 # 全局光照（Global Illumination）
+全局光照是指光源发出的光经过物体表面反射后，经过其他物体表面反射后，最终到达相机的光照结果
+![20250513104048](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513104048.png)
+
 ## Diffuse
+Diffuse GI就是讨论Diffuse反射的光照结果
+![20250513104352](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513104352.png)
+![20250513104406](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513104406.png)
+
 ## Specular
+Specular GI就是讨论Specular反射的光照结果，一般表现为高光反射
+![20250513105018](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513105018.png)
+
+## UE5
+* Diffuse GI
+  * Lightmap
+  * Irradiance Volume
+  * Screen Space GI
+  * Lumen
+* Specular GI
+  * IBL/Reflection Capture
+  * Planar Reflection
+  * Screen Space Reflection
+  * Lumen
+* Sky Light
+
+# 参与介质（Participating Media）
+跟前面的次表面散射类似，参与介质所描述的材质中，光的传播路径会更长，虽然严格意义上来说所有的材质都可以看作是参与介质，只是传播路径的长短不同而已，但由于不同尺度上渲染的方式以及涉及到的技术不同，需要分开来讨论
+![20250513001147](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001147.png)
+
+常见的参与介质，雾
+![20250513001442](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001442.png)
+
+云
+![20250513001502](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001502.png)
+
+甚至是大气，虽然一般尺度上空气对光的影响是非常小的，但当尺度足够大时，这个影响就会变得明显
+![20250513001544](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001544.png)
+
+## 物理（Physics）
+参与介质的物理上的传播原理就不过多赘述，最主要的就是参与介质中的粒子对光传播的四种影响
+![20250513001757](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513001757.png)
+
+## UE5
+* Fog
+  * Exponential Height Fog
+  * Local Fog
+  * Volume Material
+* Atmosphere
+  * Sky Atmosphere
+* Cloud
+  * Volumetric Cloud
+
+# 遮挡（Occlusion）
+光在传播中可能会被其他物体遮挡
+
+## Direct Lighting
+直接光的遮挡，就是指从光源直接到达物体表面的光线被其他物体遮挡了
+
+### Shadow
+对于很多不透明的实体，直接光的遮挡就是阴影（Shadow），阴影是指光线被其他物体遮挡后，无法到达物体表面的部分
+![20250513102840](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513102840.png)
+
+### Volumetric Shadow
+对于一些不是完全不透明的物体，比如说烟雾、云等，直接光的遮挡就是体积阴影（Volumetric Shadow），光经过这些材质，没有被完全吸收掉
+![20250513103030](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513103030.png)
+
+## Indirect Lighting
+间接光的遮挡，就是指光源的光经过其他物体表面反射后，
+
+### Ambient Occlusion
+![20250513103928](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513103928.png)
+
+## UE5
+* Shadow
+  * Shadow Map
+    * Cascade Shadow Map
+    * Per Object Shadow Map
+    * Virtual Shadow Map
+  * Contact Shadow
+  * Capsule Shadow
+  * Ray Traced Shadow
+* Volumetric Shadow
+* Indirect Shadow
+  * Screen Space Ambient Occlusion
+  * Lumen
 
 # 相机（Camera）
+最后一个阶段就是相机的成像过程，光经过物体表面反射后，最终到达相机的传感器，传感器将光转换为电信号，最后通过图像处理算法生成最终的图像，这是一个Scene To Screen的过程
 ![20250509115726](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250509115726.png)
 ![20250509143833](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250509143833.png)
+
 ## Exposure
+曝光是指相机传感器接收到光的强度，由三个参数决定
+* 光圈（Aperture）
+* 快门速度（Shutter Speed）
+* ISO感光度（ISO Sensitivity）
+![20250513105301](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513105301.png)
+![20250513105418](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513105418.png)
+
 ## Tone Mapping
+色调映射是指将Scene-Referred转换到Display-Referred的过程
 ![20250509143735](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250509143735.png)
+
 ## Color Grading
-## Post Process
+最后的色调映射，类似于影像后期处理，主要是对图像进行一些色彩上的调整，比如说饱和度、对比度、色温等
+![20250513105908](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513105908.png)
+
+## UE5
+* Cine Camera
+    ![20250513163535](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513163535.png)
+* Auto Exposure
+* White Balance
+* Tone Mapping
+  * Local Tone Mapping
+* Color Grading
+* ACES Workflow
+  * RRT
+  * ODT
