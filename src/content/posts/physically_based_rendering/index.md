@@ -24,7 +24,7 @@ PBR广泛应用之前的渲染方法主要是基于经验的（Empirical）和�
 ![20250513174427](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513174427.png)
 
 # 光源（Light Source）
-光源是渲染的起点，在基于物理的渲染中，我们就需要从物理学的角度来定义光源。
+光源是渲染的起点，所有最终到达相机成像的光都是从光源发出的，所以光源是渲染中非常重要的一个部分。在基于物理的渲染中，我们就需要从物理学的角度来定义光源。
 
 ## 物理量（Quantities）
 首先我们需要关注光源的物理量（Quantities），物理量的准确性是PBR框架中非常基础也非常重要的部分。换句话说，我们在引擎中设置光源的强度（Intensity）和颜色（Color）时，到底在物理上是代表什么含义，这也直接影响了我们参数设置的正确性。
@@ -109,17 +109,17 @@ RGB空间是大部分显示设备用到的空间，用来控制三种颜色的�
   * HSV
   * Temperature
     ![20250513145842](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513145842.png)
-* IES Profile：
-  ![20250513150440](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513150440.png)
 
 ### Point Light
 * Intensity：
   * Unitless，不推荐
-  * Candela
+  * Candelas
   * Lumens
   * EV，不推荐
     ![20250513150017](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513150017.png)
 * Color：同上
+* IES Profile：
+  ![20250513150440](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513150440.png)
 
 ### Spot Light
 跟Point Light类似，多了角度的设定
@@ -311,7 +311,7 @@ Specular GI就是讨论Specular反射的光照结果，一般表现为高光反�
 ![20250509143735](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250509143735.png)
 
 ## Color Grading
-最后的色调映射，类似于影像后期处理，主要是对图像进行一些色彩上的调整，比如说饱和度、对比度、色温等
+最后的调色，类似于影像后期处理，主要是对图像进行一些色彩上的调整，比如说饱和度、对比度、色温等
 ![20250513105908](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250513105908.png)
 
 ## UE5
