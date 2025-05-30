@@ -10,17 +10,17 @@ lang: 'zh'
 ---
 
 # Introduction
-Nanite可以算是UE5最重要的几个新特性之一，可以使得开发者可以使用高精度的几何体进行渲染，而不需要担心性能问题。
+Nanite可以算是UE5最重要的几个新特性之一，可以大幅提升项目中模型资产的面数规格。
 
 关于Nanite想要做的事可以从Karis的分享中了解到：
 ![20250526230259](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250526230259.png)
 
-如果用一句话总结就是对Geometry做虚拟化，如果用Virtual Teture来类比，VT技术使得我们可以将高精度的纹理用到我们的渲染中，其核心原理就是只加载跟只用我们需要用到的部分，这其实也是各种Virtual技术最朴素的原理，回到Geometry上，Nanite的核心原理也是如此，当我们渲染一个高精度的模型时，其实只有当这个模型拉得非常近时，我们才需要模型的细节，而距离比较远时，很多三角面已经远小于像素了，其渲染对于画面效果影响很小，但依然占用了性能，这是一种非常大的浪费，在Nanite之前我们可以通过制作多级LOD并通过渲染距离或者屏占比来切换，但这种方式有很多缺点：
-* 需要制作LOD，并且调整适配距离参数，成本高
+如果用一句话总结就是对Geometry做虚拟化，如果用Virtual Teture来类比，VT技术使得我们可以将高精度的纹理用到我们的渲染中，其核心原理就是只加载跟使用我们需要用到的部分，这其实也是很多Virtual技术最朴素的原理，回到Geometry上，Nanite的核心原理也是如此，当我们渲染一个高精度的模型时，其实只有当这个模型拉得非常近时，我们才需要模型的细节，而距离比较远时，很多三角面已经远小于像素了，其渲染对于画面效果影响很小，但依然占用了性能，这是一种非常大的浪费，在Nanite之前我们可以通过制作多级LOD并通过渲染距离或者屏占比来切换，但这种方式有很多缺点：
+* 需要制作LOD，并且调整适配距离参数，制作成本高
 * LOD切换时会有明显的跳变
 * 对于一些跨度比较大的模型，前后LOD之间的差异会很大，并不能通过一个单一的LOD模型处理这种情况
 
-Nanite通过将模型切分成很多的Cluster，然后以Cluster为单位生成LOD，然后运行时通过计算Cluster在屏幕上的显示大小来决定LOD的级别，因为LOD是以Cluster为单位的，并且始终保持三角面在屏幕上有大概一致的大小，所以不会有明显的LOD切换跳变，同时也保证了不会出现使用过于精细的LOD模型渲染的情况。
+Nanite通过将模型切分成很多的Cluster，然后以Cluster为单位生成LOD，在运行时通过计算Cluster在屏幕上的显示大小来决定LOD的级别，因为LOD是以Cluster为单位的，并且始终保持三角面在屏幕上有大概一致的大小，所以不会有明显的LOD切换跳变，同时也保证了不会出现使用过于精细的LOD模型渲染导致性能浪费的情况。
 
 ![20250526232550](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250526232550.png)
 
@@ -29,9 +29,10 @@ Nanite通过将模型切分成很多的Cluster，然后以Cluster为单位生成
 
 # Nanite Overview
 我们先从大概的技术原理看下Nanite的整体流程，这里主要是按照Karis的分享介绍一下Nanite整体的技术方案
+[https://www.youtube.com/watch?v=eviSykqSUUw&t=3462s&ab_channel=SIGGRAPHAdvancesinReal-TimeRendering]
 
 ## Build
-首先Nanite需要离线对模型进行处理，生成一些数据结构然后运行时使用
+首先Nanite需要离线对模型进行预处理，生成一些数据结构然后运行时使用
 
 ### Cluster
 首先三角面会被分成很多的Cluster，然后为了达到无缝的LOD，最朴素的想法就是对每个Cluster进行LOD，然后运行时根据当前Cluster在屏幕上的大小来决定当前的LOD级别
@@ -41,7 +42,9 @@ Nanite通过将模型切分成很多的Cluster，然后以Cluster为单位生成
 ![20250527101211](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527101211.png)
 
 ### Cluster Group
-Nanite的解决方案是锁边，也就是将一些相邻的Cluster合并成Group，然后Group之间的边是锁定的，LOD的简化只发生在Group内部，那我们只需要保证，在同一个Group中的Cluster，始终是选择相同的LOD，那么就不会出现Cracks的问题
+Nanite的解决方案是锁边，也就是将一些相邻的Cluster合并成Group，然后Group之间的边是锁定的，LOD的简化只发生在Group内部，那我们只需要保证，在同一个Group中的Cluster，始终是选择相同的LOD，那么就不会出现Cracks的问题。
+
+为了避免同一个边一直锁定，导致边上的三角面一致无法简化，锁边的操作只会在这一级的简化中，然后下一级会重新切分Group
 ![20250527112336](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527112336.png)
 
 大致的流程可以看下图
@@ -55,7 +58,7 @@ Nanite的解决方案是锁边，也就是将一些相邻的Cluster合并成Grou
 
 ![20250527114039](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527114039.png)
 
-所以，目前我们就得到了一堆Cluster Group，每个Group中包含了一些Cluster，我们在运行时就可以通过计算这些Cluster在屏幕上的大小来决定这个当前这个LOD级别的Cluster要不要渲染，但实际上如果我们对每个级别的Cluster都进行计算，即便每个计算都是可以并行的，但当场景中有很多Cluster时，这个计算的开销也是非常大的，所以Nanite这里又做了一个Hierarchy的处理，这部分Hierarchy结构也是在Build阶段预先生成好的
+所以，目前我们就得到了一堆Cluster Group，每个Group中包含了一些Cluster，我们在运行时就可以通过计算这些Cluster在屏幕上的大小来决定这个当前这个LOD级别的Cluster要不要渲染，但如果我们对每个级别的Cluster都进行计算，即便每个计算都是可以并行的，但当场景中有很多Cluster时，这个计算的开销也是非常大的，所以Nanite这里为了提升剔除的效率，又做了一个Hierarchy的处理，这部分Hierarchy结构也是在Build阶段预先生成好的，本质上一个BVH的结构
 
 ![20250528113453](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250528113453.png)
 
@@ -97,11 +100,16 @@ Persistent Thread的想法其实就是通过一个MPMC的队列，来把所有No
 ![20250527142110](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527142110.png)
 
 ### BasePass
-有了Visibility Buffer之后，下个阶段就是根据这些信息生成GBuffer，也就是Nanite Base Pass，这里Nanite用了一个非常巧妙的方式，将Materia ID转换成深度值，利用硬件的Depth Test机制快速剔除掉不相干的像素，每个材质在Shading时只会触发对应Pixel的Shader执行
+有了Visibility Buffer之后，下个阶段就是根据这些信息生成GBuffer，也就是Nanite Base Pass
 
-**（不过目前最新的实现已经换成了Shade Binning的方式，虽然这种Depth Test的方式可以快速进行剔除，但是当Material比较多的时候，每个Pixel还是需要进行很多次的Test，Shade Binning的方式每个Pixel只会处理一次，然后将Pixel所在的Bin信息写入到Buffer中再统一做处理）**
+在初版（5.0）的实现里面，Nanite用Materia ID转换成深度值，利用硬件的Depth Test机制快速剔除掉不相干的像素，每个材质在Shading时只会触发对应Pixel的Shader执行
 
 ![20250527144825](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527144825.png)
+
+在5.4中，Nanite对这个部分进行了优化，新的方案叫做Shade Binning，最主要的想法是将Pixel按照Shading方式进行分类，将Pixel的信息存到Buffer里面，然后每个Bin在处理的时候就可以直接处理相关的Pixel，而不需要再通过Depth Test来剔除不相关的Pixel
+
+![20250530174103](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250530174103.png)
+![20250530174404](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250530174404.png)
 
 ## Streaming
 类似于VT，只有用到的数据才会被加载，Nanite也只会加载当前渲染到的几何数据，当模型距离较远的时候，细节的Cluster就不会被加载
@@ -128,12 +136,14 @@ Nanite的Streaming的单元是基于Cluster Group，原因跟前面LOD Cracks的
   * ![20250527153754](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527153754.png)
   * ClusterTriangles：第一步先对每个Mesh进行处理，生成Cluster
     * ![20250527153937](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527153937.png)
+    * 具体的实现是通过图的切割来实现的，每个三角面就是图上的一个节点，三角面之间的公共边就是图上的一个连接，这样的话我们可以通过图的最小割算法来切分Cluster
   * BuildDAG：生成Cluster的DAG结构
     * ![20250527154415](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527154415.png)
     * 过程就是重复以下步骤：
-      * 把Cluster组合成Group
-      * 然后对Group内的Cluster进行简化
-      * Group内的Cluster再重新Split成新的Cluster
+      * 把Cluster组合成Group，这里的算法跟Cluster生成比较类似，只不过Cluster是以Triangle为单位，Group这里是以Cluster为单位
+      * DAGReduce：对Group内的Cluster进行简化，然后再Split成新的Cluster
+        * ![20250528162554](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250528162554.png)
+        * ![20250528162539](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250528162539.png)
   * KeepPercentTriangles/TrimRelativeError：控制原始模型导入的三角面的数量
     * ![20250527160251](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527160251.png)
   * Fallback：生成Fallback的模型，用于一些不支持Nanite的情况
@@ -143,12 +153,12 @@ Nanite的Streaming的单元是基于Cluster Group，原因跟前面LOD Cracks的
     * SanitizeVertexData：处理一些非法的数据，比如超出浮点精度范围的一些数值
     * RemoveDegenerateTriangles：清理一些退化的三角面，比如其中有一些两个顶点重合的三角面
     * BuildMaterialRanges：构建Cluster的材质信息
-    * ConstrainClusters
+    * ConstrainClusters：对Triangle做Strip优化，可以减少Indices的Disk占用，对于顶点过多的Cluster进行Split
     * BuildVertReuseBatches：计算材质Batch的三角面数量（不过目前没有找到这个数据具体是用在哪里的，可能是已经废弃了）
     * CalculateQuantizedPositionsUniformGrid：根据Cluster的Bounding Box范围对顶点位置进行Quantization
     * CalculateEncodingInfos：生成一些Encoding的基本信息
     * AssignClustersToPages：生成Page信息
-    * BuildHierarchies：构建Hierarchy结构
+    * BuildHierarchies：构建BVH Hierarchy
     * WritePages：写入最终的Page数据，Page中包含了所有Cluster的信息，并且这里还会对数据进行一些压缩处理
 
 ## Runtime
@@ -163,15 +173,18 @@ Nanite的Streaming的单元是基于Cluster Group，原因跟前面LOD Cracks的
         * AddPass_NodeAndClusterCull：对Node以及Cluster进行剔除
           * ![20250527170028](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527170028.png)
           * 这里可以看到，Nanite还是实现了两种方案，PersistentThreadCulling以及按照Level进行层级剔除，而且默认只有在PS5上才会使用PersistentThreadCulling，所以看起来Persistent的这种模式目前只有在PS5上是明确有正向收益的，在其他硬件上可能性能收益并不明确
-          * NodeCull：对Node级别进行剔除，Node也就是Build阶段生成的Hierarchy结构中的节点
-            * 根据Node节点，根据视锥以及HZB进行剔除，然后计算Screen-Error决定是否需要更细节的Cluster，如果需要进一步细节的Cluster，则输出下一个层级的Node到Buffer中，否则直接输出Cluster信息
-          * ClusterCull：对Cluster级别进行剔除，在完成所有Hierarchy的Node处理之后，处理目前得到的所有Cluster，进行视锥以及HZB的遮挡剔除，输出最终需要渲染的Cluster
+          * NodeCull：对Node进行剔除，Node也就是Build阶段生成的BVH Hierarchy结构中的节点
+            * 根据Node节点的Bounding Box、HZB、Screen-Error来进行剔除
+          * ClusterCull：对Cluster进行剔除处理，得到最终需要渲染的Cluster
       * AddPass_Rasterize：进行光栅化，生成Visibility Buffer
-        * AddPass_Binning：生成Raster Binning
+        * AddPass_Binning：生成Raster Binning，这里就会根据Cluster的光栅化的方式不同进行分类，每一种光栅化方式会生成一个Raster Bin，这个Bin里面包含了所有需要被光栅化的Cluster
+          * ![20250529160505](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250529160505.png)
           * RasterBinCount：从前面裁剪生成的Cluster中读取材质信息，然后统计每个Bin的Cluster的数量
           * RasterBinReserve：根据BinCount的统计，给每个Bin预留出足够的空间用来写入Cluster的信息
           * RasterBinScatter：写入Raster Bin的数据，也就是每个Bin包含的Cluster的信息，然后这里还做了简单的Batch，所以写入的是Cluster的Index以及Range信息
           * RasterBinFinalize：一些最终的处理，主要是处理Mesh Shader的Indirect Args
+        * DispatchSW(Tessellation)：软光栅化的Tessellation处理
+          * Tessellation材质全部会走SW光栅化，但这里只先处理了原本就需要走SW的那部分Cluster
         * DispatchHW：硬光栅化
           * ![20250527173343](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527173343.png)
           * 处理每个Rasterizer Pass，也就是调用每个Indirect Draw，每个Indirec Buffer里面已经存好了有多少Cluster需要被渲染
@@ -180,11 +193,15 @@ Nanite的Streaming的单元是基于Cluster Group，原因跟前面LOD Cracks的
           * ![20250527173412](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527173412.png)
           * 结构上是类似的，只不过软光栅化是通过Compute Shader来进行光栅化计算的
           * ![20250527174711](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527174711.png)
+        * AddPass_PatchSplit：如果开启了Tessellation，前面第一次SW没有处理完的Cluster，会先经过Split Pass进行拆分，因为需要拆分的Cluster一般是比较大的，经过Tessellation之后会产生非常多的三角面，如果直接进行光栅化会导致单个Thread任务太重
+        * AddPass_Binning：这里给Split之后的Cluster重新生成Raster Binning
+        * DispatchSW(Patches)：对前面Split之后的三角面进行光栅化
     * BuildHZB：通过Main Pass生成的Depth Buffer生成新的HZB
+      * ![20250529160729](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250529160729.png)
     * Post Pass：Two-Pass Occlusion的第二个阶段
       * ![20250527180243](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527180243.png)
       * 流程上跟Main Pass基本一致，区别是这里使用的新的HZB进行遮挡剔除，处理的是前面被剔除掉的Cluster
-  * EmitDepthTargets：从Visibility Buffer中提取出深度信息，生成Depth Buffer
+  * EmitDepthTargets：从Visibility Buffer中提取出一些信息，比如Depth、Velocity、ShadingMask
 * Nanite::DispatchBasePass：渲染Nanite的Base Pass
   * ShadeBinning：生成Shade Binning，逻辑跟前面的Raster Bin比较类似，只不过前面Bin的是Cluster信息，这里Shade Bin的是Pixel的信息
   * ShadeGBuffer：渲染GBuffer
@@ -213,6 +230,9 @@ Nanite的Streaming的单元是基于Cluster Group，原因跟前面LOD Cracks的
 ![20250528102738](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250528102738.png)
 ![20250528103907](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250528103907.png)
 
+## Tessellation/Displacement
+Displacement跟WPO其实比较类似，其根本原因也都是因为Displacement会改变顶点位置，也需要单独的Raster Bin，而且Displacement目前是跟Tessellation绑定在一起的，而Tessellation会大幅增加三角面的数量，对于性能也有不小的影响
+
 ## Masking Materials
 Masking材质其实会有一些类似的问题，因为Masking材质会改变Pixel级别的深度信息，所以光栅化的时候需要跑完整的Pixel的代码，这会进一步加重Rasterization的消耗
 
@@ -223,5 +243,13 @@ UE实现中，这部分材质被归为PixelProgrammable，目前Masking、PixelD
 目前（5.5）Skinned Mesh也支持了Nanite
 ![20250528111213](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250528111213.png)
 
-对于Skinned Mesh，除了Raster Binning需要单独处理之外，在裁剪剔除的时候也做了一些Hack，目前为了保证Cluster不会被错误剔除，Nanite会将Skinned Mesh的Cluster的Bounding Box直接扩大到整个Instance的Bounding Box，因为这样保证了子节点的Bounding Box始终是在父节点的Bounding Box内的，也就满足了Error的单调性，所以在LOD Selection的时候也依然可以得到正确的结果，但这种方式的问题就是会影响Culling的效率，所以目前Skinned Mesh的Nanite官方还是标注的Beta
+对于Skinned Mesh，除了Raster Binning需要单独处理之外，在裁剪剔除的时候也做了一些Hack，目前为了保证Cluster不会被错误剔除，Nanite会将Skinned Mesh的Cluster的Bounding Box直接扩大到整个Instance的Bounding Box，因为这样保证了子节点的Bounding Box始终是在父节点的Bounding Box内的，也就满足了Error的单调性，所以在LOD Selection的时候也依然可以得到正确的结果，但这种方式的问题就是会影响Culling的效率，所以目前Skinned Mesh的Nanite官方还是标注的Experimental
 ![20250528112051](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250528112051.png)
+
+## Aggregate Meshes
+Aggregate Meshes是一类比较特殊的Mesh，是由很多小的部分组合而成，最典型的情况就是植被，每个叶片在经过简化之后，面积可能会非常小，视觉上就会变得非常稀疏
+
+目前UE的方案是提供Preseve Area的选项，在勾上之后，在Cluster构建的简化阶段，会根据Area重新调整简化后的三角面的坐标，保持三角面的面积一致
+![20250529162929](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250529162929.png)
+
+![20250529163437](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250529163437.png)
