@@ -107,9 +107,6 @@ Indirect Lighting的计算，多帧迭代的结果，通过缓存上一帧的Ind
         * ConvertToSH：将Tracing的结果转成SH系数
         * Integrate：根据前面的Probe SH计算Tile的Indirect Lighting
       * CombineLumenSceneLighting：更新最终光照结果
-  * DispatchAsyncLumenIndirectLightingWork
-    * ![20250603184436](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603184436.png)
-    * 开启r.Lumen.DiffuseIndirect.AsyncCompute的情况下，提前开始做
 
 # Propagation
 最后一个阶段就是Propogation，也就是将光照信息从之前Lighting的物体表面传播到其他物体表面，这个一般也是整个全局光照中最复杂，消耗最高的部分。
@@ -128,3 +125,60 @@ Software Raytracing主要是基于SDF
 
 Hardware Raytracing相比来说，可以生成更加精确的结果，可以用来做高精度反射
 ![20250603185924](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603185924.png)
+
+![20250603202630](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603202630.png)
+
+![20250603203350](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603203350.png)
+
+![20250603204717](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603204717.png)
+
+![20250603204736](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603204736.png)
+
+![20250603204830](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603204830.png)
+
+![20250603204905](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603204905.png)
+
+* FDeferredShadingSceneRenderer::Render
+  * DispatchAsyncLumenIndirectLightingWork
+    * ![20250603184436](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603184436.png)
+    * 开启r.Lumen.DiffuseIndirect.AsyncCompute的情况下，提前创建异步任务开始做Final Gather
+    * RenderLumenFinalGather：Lumen的Final Gather，也就是生成屏幕空间的最终的Indirect Lighting
+      * RenderLumenIrradianceFieldGather/RenderLumenReSTIRGather/RenderLumenScreenProbeGather：根据配置执行Gather，默认是Screen Probe
+        * RenderLumenScreenProbeGather
+          * UniformPlacement：使用均匀分布生成Screen Probe
+          * AdaptivePlacement：使用自适应分布生成Screen Probe
+          * SetupAdaptiveProbeIndirectArgs：生成Adaptive Probe的Indirect Args
+          * GenerateBRDF_PDF：生成BRDF的PDF
+          * UpdateRadianceCaches
+          * GenerateImportanceSamplingRays
+            * ComputeLightingPDF：生成Lighting的PDF
+            * GenerateRays：生成采样的Ray，如果开启了Importance Sampling的话，会根据PDF进行采样
+          * TraceScreenProbes：对Screen Probe进行Tracing
+            * TraceScreen：用HZB进行屏幕空间的Tracing
+            * RenderHardwareRayTracingScreenProbe：Hardware的Tracing
+              * NearField：近距离的Tracing，只处理前面ScreenTracing Miss的部分
+                * SurfaceCache/HitLighting
+                  * ![20250603235011](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603235011.png)
+                  * 这里会根据开关决定Lighting的方式，SurfaceCache就是直接复用前面Surface Cache的Lighting结果，如果是HitLighting的话，就会重新计算Lighting，消耗也是会更高
+              * FarField：远距离的Tracing，处理前面Screen跟Near都Miss的部分
+            * TraceMeshSDFs：如果没有开启Hardware Ray Tracing，使用SDF进行Tracing
+            * TraceVoxels
+          * FilterScreenProbes
+            * CompositeTraces
+            * CalculateMoving
+            * TemporallyAccumulateRadiance
+            * FilterRadianceWithGather
+            * InjectLightSamples
+            * ScreenProbeConvertToIrradiance
+            * FixupBorders
+            * GenerateMip
+          * ComputeScreenSpaceShortRangeAO：根据开关r.Lumen.ScreenProbeGather.ShortRangeAO确定是否计算短距离的AO
+            * RenderHardwareRayTracingShortRangeAO：用Hardware Tracing计算AO
+            * ShortRangeAO_ScreenSpace：屏幕空间的Tracing计算AO
+          * InterpolateAndIntegrate
+            * TileClassificationMark
+            * TileClassificationBuildLists
+            * ScreenProbeIntegrate
+          * UpdateHistoryScreenProbeGather：更新History数据
+      * ComputeLumenTranslucencyGIVolume
+    * RenderLumenReflections：渲染Lumen Reflections
