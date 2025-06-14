@@ -80,9 +80,17 @@ Surface Cache的更新流程：
     * ResampleLightingHistory：将缓存的Lighting信息重新映射到新的Card Pages上
     * 提交MDC，这里就是进行实际的Surface Cache的渲染，将物体表面的材质信息缓存下来
     * ![20250603120956](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603120956.png)
+    * ![20250614181631](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614181631.png)
 
 # Lighting
-第二个部分就是光照计算，在Lumen中就是对前面的Surface Cache进行光照计算并且缓存光照的结果，然后用于后续的Propagation达到Indirect Lighting的效果。
+第二个部分就是光照计算，Lumen中对于这部分的处理有两种方案
+* Surface Cache Lighting
+  * 第一种是对Surface Cache进行光照计算，然后通过Surface Cache的结果进行光照传播。
+* Hit Lighting
+  * 第二种是在Hit的时候直接计算光照，如果光照计算比较复杂，这种方案更比较耗，因为每次Hit都需要重新计算光照。
+
+## Surface Cache Lighting
+Surface Cache Lighting的方案就是对前面的Surface Cache进行光照计算并且缓存光照的结果，然后用于后续的Propagation达到Indirect Lighting的效果。
 
 为了达到Multi-bounce的Indirect Lighting，Lumen在对Surface Cache进行光照计算的时候还会缓存一些Indirect Lighting的结果，这样多帧累积之后可以达到Infinite Bounce的Indirect Lighting效果。
 ![20250602170159](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250602170159.png)
@@ -112,13 +120,18 @@ Lumen中Lighting的计算流程：
         * ComputeLightTileOffsetsPerLight：统计Light相关的Tile数量的Prefix Sum
         * InitializeLightTileIndirectArgs：写入Indirect Args
         * CompactLightTiles：合并Light Tile
+        * ![20250614184630](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614184630.png)
       * ComputeShadowMaskFromLightAttenuation：为Light Tile计算Shadow Mask，这里是用的ShadowMap确定遮挡关系，如果没有ShadowMap没有覆盖到，会写入到一个Buffer中，后续再做Ray Tracing进一步确认遮挡关系
+        * ![20250614184719](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614184719.png)
       * InitShadowTraceIndirectArgs：生成Shadow Trace的Indirect Args
       * Offscreen shadows：生成Offscreen Shadows，也就是Shadow Map没有覆盖到的部分
         * TraceLumenHardwareRayTracedDirectLightingShadows：如果开启了HW Tracing，使用硬件光追计算Shadow
         * TraceDistanceFieldShadows：否则使用Distance Field Shadows
+        * ![20250614184803](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614184803.png)
       * RenderDirectLightIntoLumenCardsBatched：结合前面生成的Shadow Mask计算直接光照
+        * ![20250614185006](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614185006.png)
       * CombineLumenSceneLighting：更新最终光照结果
+        * ![20250614185024](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614185024.png)
     * RenderRadiosityForLumenScene：计算Indirect Lighting
       * SpliceCardPagesIntoTiles：将Card Pages切分成Tile
       * AddRadiosityPass：添加Radiosity Pass
@@ -129,6 +142,7 @@ Lumen中Lighting的计算流程：
         * ConvertToSH：将Tracing的结果转成SH系数
         * Integrate：根据前面的Probe SH计算Tile的Indirect Lighting
       * CombineLumenSceneLighting：更新最终光照结果
+      * ![20250614185344](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614185344.png)
 
 # Propagation
 最后一个阶段就是Propogation，也就是将光照结果从之前Lighting的物体表面传播到其他物体表面，这个一般也是整个全局光照中最复杂，消耗最高的部分。
@@ -214,23 +228,28 @@ Lumen的Final Gather逻辑流程：
             * GenerateProbeTraceTiles：生成Probe的Tracing Tile信息
             * SetupTraceFromProbesCS
             * RenderLumenHardwareRayTracingRadianceCache/TraceFromProbes：计算Probe的Tracing的结果
+              * ![20250614190039](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614190039.png)
             * FilterProbeRadiance：用附近的Probe进行滤波
             * FixupBordersAndGenerateMips
           * GenerateImportanceSamplingRays
             * ComputeLightingPDF：生成Lighting的PDF
+            * ![20250614185803](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614185803.png)
             * GenerateRays：生成采样的Ray，如果开启了Importance Sampling的话，会根据PDF进行采样
           * TraceScreenProbes：对Screen Probe进行Tracing
             * TraceScreen：用HZB进行屏幕空间的Tracing
-            * Hardware：
+              * ![20250614190302](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614190302.png)
+            * Hardware Ray Tracing：
               * RenderHardwareRayTracingScreenProbe：Hardware的Tracing
                 * NearField：近距离的Tracing，只处理前面ScreenTracing Miss的部分
                   * SurfaceCache/HitLighting
                     * ![20250603235011](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603235011.png)
                     * 这里会根据开关决定Lighting的方式，SurfaceCache就是直接复用前面Surface Cache的Lighting结果，如果是HitLighting的话，就会重新计算Lighting，消耗也是会更高
                 * FarField：远距离的Tracing，处理前面Screen跟Near都Miss的部分
-            * Software：
+            * Software Ray Tracing：
               * TraceMeshSDFs：Mesh SDF Tracing
+                * ![20250614190525](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614190525.png)
               * TraceVoxels：Global SDF Tracing
+                * ![20250614190544](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614190544.png)
           * FilterScreenProbes
             * CompositeTraces：计算Probe的Radiance
             * CalculateMoving：计算Probe的Moving
@@ -246,6 +265,7 @@ Lumen的Final Gather逻辑流程：
             * TileClassificationMark：因为不同材质可能需要不同的Integrate方式，用Tile进行分类加速优化
             * TileClassificationBuildLists：构建List
             * ScreenProbeIntegrate：采样Screen Probe的结果，生成最终的Indirect Lighting结果
+              * ![20250614190847](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614190847.png)
           * UpdateHistoryScreenProbeGather：更新History数据
       * ComputeLumenTranslucencyGIVolume
         * UpdateRadianceCaches：更新Translucency的Radiance Cache
@@ -257,6 +277,7 @@ Lumen的Final Gather逻辑流程：
       * GenerateRays：生成Ray信息
       * TraceReflections：
         * TraceScreen：屏幕空间Tracing
+          * ![20250614192247](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614192247.png)
         * RenderLumenHardwareRayTracingReflections/TraceMeshSDFs+TraceVoxels：根据开关配置选择用Hardware Ray Tracing或者是Software Ray Tracing
       * ReflectionsResolve：Upscaling Resolve
       * Temporal Denoise：做Temporal降噪
@@ -266,3 +287,4 @@ Lumen的Final Gather逻辑流程：
     * RenderLumenReflections：如果前面没有走Async的异步流程，这里会计算Reflections
   * RenderDiffuseIndirectAndAmbientOcclusion
     * DiffuseIndirectComposite：Composite最终结果
+      * ![20250614192624](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250614192624.png)
