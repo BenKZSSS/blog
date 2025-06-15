@@ -11,6 +11,7 @@ lang: 'zh'
 
 # Introduction
 Lumen是UE5中全新的全局光照方案，用于支持实时动态的全局光照效果。这篇将主要介绍Lumen主要的原理方案和具体的实现上的流程。
+[https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-technical-details-in-unreal-engine]
 
 主要按照三个大的部分来说明，这也是很多全局光照方案共通的需要解决的几个问题：
 * Scene Representation
