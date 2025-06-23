@@ -11,7 +11,7 @@ lang: 'zh'
 
 # Introduction
 Lumen是UE5中全新的全局光照方案，用于支持实时动态的全局光照效果。这篇将主要介绍Lumen主要的原理方案和具体的实现上的流程。
-[https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-technical-details-in-unreal-engine]
+（官方文档[https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-technical-details-in-unreal-engine]）
 
 主要按照三个大的部分来说明，这也是很多全局光照方案共通的需要解决的几个问题：
 * Scene Representation
@@ -59,7 +59,7 @@ Mesh Card的生成代码逻辑：
 为了性能，Surface Cache的更新是通过分帧更新处理的，通过Budget限制每帧最多更新的数量。
 ![20250602162044](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250602162044.png)
 
-通过GPU的使用的信息来决定Surface Cache的更新（Feedback），通过Feedback可以减少Surface Cache的更新数量，只更新哪些需要用到的Surface Cache。
+通过GPU的使用的信息来决定Surface Cache的更新（Feedback），通过Feedback可以减少Surface Cache的更新数量，只更新那些需要用到的Surface Cache。
 ![20250603121636](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603121636.png)
 
 Surface Cache的数据主要就是包含了表面的基础的材质信息，类似GBuffer。
@@ -100,7 +100,7 @@ Surface Cache Lighting的方案就是对前面的Surface Cache进行光照计算
 ![20250602171041](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250602171041.png)
 
 Lumen中Direct Lighting的计算
-* 将Surface Cachde的Pages拆分成8x8的Tile
+* 将Surface Cache的Pages拆分成8x8的Tile
 * 每个Tile选择优先级最高的N个Light计算光照
 * 生成ShadowMask
 * 计算光照结果
@@ -185,7 +185,7 @@ Software Raytracing主要是基于SDF进行Tracing，Lumen用到了两种SDF：
 另一个方案就是依赖硬件的光追特性的Hardware Raytracing，相比Software Raytracing，Hardware Raytracing可以得到更精确的Hit结果，但需要硬件支持。
 ![20250603185924](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603185924.png)
 
-所以整体上Lumen的Tracing是一个层级结构，按照距离依次进行处理，只有前面没有Tracing到的部分才会继续往下继续Tracing
+所以整体上Lumen的Tracing是一个层级结构，按照距离依次进行处理，只有前面没有Tracing到的部分才会继续往下做Tracing
 ![20250603203350](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250603203350.png)
 
 在Tracing打到物体表面之后，我们需要获取到Hit表面的光照结果，Lumen实现了两种方式
