@@ -18,6 +18,9 @@ VSM本质上也还是Shadow Map的一种变体，但相比一些传统的Shadow 
 
 ![20250819214200](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250819214200.png)
 
+VSM从设计来说可以用于取代之前很多的Shadow Map技术，所以在开启VSM之后，很多之前的Shadow Map技术都会被禁用，比如CSM、PerObject Shadow Map等。
+![20250820112637](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250820112637.png)
+
 # Virtual Pages & Physical Pages
 为了实现对超高分辨率Shadow Map的虚拟化，也就是对Shadow Map进行切分，从而能够够只处理那些真正需要被处理的部分，VSM将Shadow Map划分成了很多个小块，每个小块就是一个Page（128x128），这个概念可以类比虚拟内存里面按照页进行管理的概念。然后概念上的超高分辨率Shadow Map就变成了很多个Page的集合，这些Page就是Virtual Pages，而这些Virtual Pages当中只有一部分是我们需要用到的，而这些需要用到的Virtual Pages才会被映射到Physical Pages上，Physical Pages就是实际存储Shadow Map数据的地方。类似与虚拟内存，从Virtual Pages到Physical Pages的映射关系也需要一个中间的数据结构来进行管理，这个数据结构就是Page Table。
 
@@ -60,26 +63,45 @@ VSM本质上也还是Shadow Map的一种变体，但相比一些传统的Shadow 
     * FVirtualShadowMapArray::RenderVirtualShadowMapsNanite
       * CompactViewsVSM:生成Nanite Views
       * Nanite::FRenderer::DrawGeometry:通过Nanite渲染VSM
+        * Nanite对于VSM渲染做了特殊的处理，在Culling的过程中会根据VSM的Page信息来进行Culling，从而只渲染那些真正需要的部分
     * FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite
     * FVirtualShadowMapArray::PostRender
 
 # Shadow Projection
+得到了Shadow Map之后，接下来就是生成ShadowMask，也就是Projection的过程
+
+Projection的CPU侧的流程如下：
 * FShadowSceneRenderer::RenderVirtualShadowMapProjectionMaskBits
   * RenderVirtualShadowMapProjectionOnePass:如果LocalLights开启了OnePass Projection
     * RenderVirtualShadowMapProjectionCommon
+    * ![20250820103641](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250820103641.png)
 * FDeferredShadingSceneRenderer::RenderDeferredShadowProjections
   * FShadowSceneRenderer::ApplyVirtualShadowMapProjectionForLight
     * Directional Light:处理方向光的VSM投影
       * RenderVirtualShadowMapProjection:生成VSM Projection
         * RenderVirtualShadowMapProjectionCommon
           * VirtualShadowMapProjection:从深度还原位置信息，然后从VSM生成Projection
+          * ![20250820103942](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250820103942.png)
         * CompositeVirtualShadowMapMask:将VSM的Projection合并到最终的ShadowMask
     * Non Directional Light:处理非方向光的VSM投影
-      * OnePass Projection
-        * CompositeVirtualShadowMapFromMaskBits
-      * Non OnePass Projection
+      * OnePass Projection:处理开启了OnePass Projection的情况
+        * CompositeVirtualShadowMapFromMaskBits:将VSM的Projection合并到最终的ShadowMask
+      * Non OnePass Projection:处理没有开启OnePass Projection的情况
         * RenderVirtualShadowMapProjection
           * RenderVirtualShadowMapProjectionCommon
+            * VirtualShadowMapProjection:从深度还原位置信息，然后从VSM生成Projection
           * CompositeVirtualShadowMapMask
 
 # Shadow Map Ray Tracing(SMRT)
+VSM对于软阴影做了特殊的方案，也就是Shadow Map Ray Tracing(SMRT)，不同于传统的PCF，SMRT是通过在Shadow Map上进行Ray Tracing来实现软阴影的效果。
+
+相比于PCF，SMRT更加贴近真实的阴影效果，在靠近遮挡体的地方，阴影会更加锐利，而在远离遮挡体的地方，阴影会更加柔和。
+
+![20250820104334](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250820104334.png)
+![20250820112436](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250820112436.png)
+
+在做实际的SMRT之前，会先用DepthBuffer做一个ScreenRayCast来计算RayOffset，防止Self Shadowing的问题。
+![20250820111344](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250820111344.png)
+
+然后根据RayCount的配置，进行SMRTRayCast，也就是在Shadow Map上进行Ray Tracing，类似各种屏幕空间上的Tracing技术，比如SSR之类的。
+![20250820111518](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250820111518.png)
