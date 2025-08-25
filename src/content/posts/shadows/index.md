@@ -43,7 +43,41 @@ VSM开启之后CSM会自动被禁用，作为一些低端机器以及移动端�
 ![img_v3_02pg_954d6c21-5599-46a8-b4e5-7945392e283g](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/img_v3_02pg_954d6c21-5599-46a8-b4e5-7945392e283g.jpg)
 ![img_v3_02pg_da330656-7914-4f76-bb36-a19059a1482g](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/img_v3_02pg_da330656-7914-4f76-bb36-a19059a1482g.jpg)
 
+## 总结
+* VSM作为基础
+* Contact Shadow补充Pixel级别的阴影细节
+* Distance Field Shadow作为远距离非Nanite物体阴影的补充
+* Ray Traced Shadow作为特殊情况下的补充
+
 # 间接光阴影（Indirect Shadow）
 ## 环境光遮蔽（Ambient Occlusion）
 
-## 屏幕空间环境光遮蔽（Screen Space Ambient Occlusion）
+### 屏幕空间环境光遮蔽（Screen Space Ambient Occlusion）
+通过屏幕深度信息计算AO
+![img_v3_02pg_dd6f1ac5-7c1b-48d7-b880-763c3677bccg](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/img_v3_02pg_dd6f1ac5-7c1b-48d7-b880-763c3677bccg.jpg)
+![img_v3_02pg_e05a8462-dddd-498f-ba7e-cbaa1eaabfbg](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/img_v3_02pg_e05a8462-dddd-498f-ba7e-cbaa1eaabfbg.jpg)
+
+### Lumen Short Range AO
+Lumen中的短距离AO，对比SSAO效果不是很明显
+![img_v3_02pg_18995910-c34f-4526-9b7e-53519c6c41fg](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/img_v3_02pg_18995910-c34f-4526-9b7e-53519c6c41fg.jpg)
+
+### 距离场AO（Distance Field Ambient Occlusion）
+与Lumen冲突，在开启Lumen的情况下无法使用
+![20250825214543](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250825214543.png)
+
+## 方向性的环境光遮蔽（Directional Ambient Occlusion）
+
+### Lumen
+Indirect Shadow本质上是全局光照的一部分，Lumen一定程度上已经解决了Indirect Shadow的问题
+![img_v3_02pg_46b8996c-a702-424c-b082-ddaf4175a49g](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/img_v3_02pg_46b8996c-a702-424c-b082-ddaf4175a49g.jpg)
+
+### 距离场Indirect Shadow（Distance Field Indirect Shadow）
+Distance Field Indirect Shadow是通过距离场的Tracing计算的间接光阴影，可以跟Lumen结合使用，不过在没有VLM的情况下，Tracing的方向是通过SkyLight的方向来计算的，效果跟GroundTruth还是有一定差距，暂时作为一种补充手段。
+![img_v3_02pg_efbe5b74-baa8-4316-83fd-a04c9e9b741g](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/img_v3_02pg_efbe5b74-baa8-4316-83fd-a04c9e9b741g.jpg)
+
+## 总结
+* AO
+    * SSAO作为基础AO
+* Directional AO
+    * Lumen作为基础
+    * Distance Field Indirect Shadow作为补充
