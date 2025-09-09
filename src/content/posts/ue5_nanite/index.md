@@ -239,12 +239,13 @@ Nanite的Streaming的单元是基于Cluster Group，原因跟前面LOD Cracks的
     * 如果有Skinning，这里会根据Transform变换Brick的Tracing Raster
     * ![20250909220409](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909220409.png)
     * 这里还通过Group Shared Memory以及Wave Instrinsics做了一个Group内的任务队列，来提升并行效率
+    * ![20250909224022](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909224022.png)
     * ProcessBrickPixelBatchFromQueue
-      * 处理任务队列里面的Pixel
+      * 处理任务队列里面的Pixel，从Group Shared Memory中读取相关的信息，重构Pixel以及Ray的信息
       * ProcessBrickPixel
-        * 通过DDA算法在体素数据中做Ray Marching，得到最终的像素信息
-        * http://www.cse.yorku.ca/~amana/research/grid.pdf
+        * 通过DDA算法在体素数据中做Ray Marching，得到最终的像素信息，然后写入到Visibility Buffer
         * ![20250909204420](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909204420.png)
+        * DDA算法可以参考：http://www.cse.yorku.ca/~amana/research/grid.pdf
 
 # Issues
 目前已知的一些，Nanite支持还不是很完善，或者会导致一些性能问题需要特别注意的点
