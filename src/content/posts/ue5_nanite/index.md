@@ -208,6 +208,44 @@ Nanite的Streaming的单元是基于Cluster Group，原因跟前面LOD Cracks的
     * ![20250527182135](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250527182135.png)
     * 处理每个ShadeCommand，这里就是从Visibility Buffer中提取出几何信息以及材质信息，然后执行材质的Shader，生成GBuffer
 
+# Nanite Foliage(5.7+)
+5.7开始，Nanite对Foliage做了特殊的支持，因为植被类的模型一般由很多小的枝杈叶片组成，这种Mesh会在Cluster简化过程中导致面积丢失，在5.7之前的版本，UE提供了一个Preserve Area的选项，可以在Cluster简化过程中保持面积不变。5.7之后，UE对植被类的Mesh做了更好的支持。
+
+最核心的两个优化：
+* Assemblies：支持通过Assembly的方式，可以把一些小的Mesh通过调整Transform的方式组合成一个更大的Mesh，这样可以复用同一个Mesh的Cluster数据，减少Memory、Disk、Bandwidth的消耗
+* Voxel：支持通过体素的方式来生成Cluster，这样对于Aggregate Mesh，可以在较远距离下得到更好的LOD效果，也解决了离散的三角面无法聚合简化的问题
+
+## Cluster构建
+* Nanite:FBuilderModule::Build
+  * BuildIntermediateResources
+    * AddAssemblyParts
+      * ![20250909104248](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909104248.png)
+      * 将Assembly的信息加入到DAG中，主要包括Assembly的Mesh的Cluster信息，每个Assembly的Transform信息，如果是Skinned Mesh还会包含Bone的信息
+    * FClusterDAG::ReduceMesh
+      * FClusterDAG::ReduceGroup
+        * ![20250909142132](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909142132.png)
+        * 简化Cluster的逻辑中，增加了对Voxel的支持，Cluster不再只是Triangle的方式进行简化，而是可以通过体素的方式来进行简化
+          * FCluster::Voxelize
+            * 对Cluster中的三角面进行体素化，通过Embree的Tracing来计算体素中的几何属性
+            * FCluster::VoxelsToBricks
+              * 通过体素生成更粗粒度的Brick，每个Brick包含4x4x4个体素
+
+## Rasterize
+* MicropolyRasterize
+  * 在光栅化阶段，Voxel类型的Cluster只能走软光栅化，MicropolyRasterize在对于Voxel类型的Cluster时会走ClusterTraceBricks的方式，也就是在体素数据中做Tracing
+  * ![20250909143852](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909143852.png)
+  * ClusterTraceBricks
+    * 处理Cluster中的Brick，计算Brick在屏幕上的大小，然后处理覆盖的Pixels
+    * 如果有Skinning，这里会根据Transform变换Brick的Tracing Raster
+    * ![20250909220409](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909220409.png)
+    * 这里还通过Group Shared Memory以及Wave Instrinsics做了一个Group内的任务队列，来提升并行效率
+    * ProcessBrickPixelBatchFromQueue
+      * 处理任务队列里面的Pixel
+      * ProcessBrickPixel
+        * 通过DDA算法在体素数据中做Ray Marching，得到最终的像素信息
+        * http://www.cse.yorku.ca/~amana/research/grid.pdf
+        * ![20250909204420](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909204420.png)
+
 # Issues
 目前已知的一些，Nanite支持还不是很完善，或者会导致一些性能问题需要特别注意的点
 
