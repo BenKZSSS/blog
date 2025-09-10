@@ -213,7 +213,11 @@ Nanite的Streaming的单元是基于Cluster Group，原因跟前面LOD Cracks的
 
 最核心的两个优化：
 * Assemblies：支持通过Assembly的方式，可以把一些小的Mesh通过调整Transform的方式组合成一个更大的Mesh，这样可以复用同一个Mesh的Cluster数据，减少Memory、Disk、Bandwidth的消耗
-* Voxel：支持通过体素的方式来生成Cluster，这样对于Aggregate Mesh，可以在较远距离下得到更好的LOD效果，也解决了离散的三角面无法聚合简化的问题
+* Voxel：支持通过体素的方式来生成Cluster，这样对于Aggregate Mesh，可以在较远距离下得到更好的LOD效果
+
+下图绿色部分是通过Voxel化的Cluster，红色部分是标准的Triangle Cluster（这里调整了r.Nanite.MaxPixelsPerEdge让Cluster更快切换，正常是看不出明显体素化的artifacts）
+![img_v3_02q0_417bef16-0e05-475e-bf81-11fae2f7949g](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/img_v3_02q0_417bef16-0e05-475e-bf81-11fae2f7949g.jpg)
+![img_v3_02q0_81ab7fbe-3927-410c-9395-9e1f450a6ceg](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/img_v3_02q0_81ab7fbe-3927-410c-9395-9e1f450a6ceg.jpg)
 
 ## Cluster构建
 * Nanite:FBuilderModule::Build
@@ -236,7 +240,7 @@ Nanite的Streaming的单元是基于Cluster Group，原因跟前面LOD Cracks的
   * ![20250909143852](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909143852.png)
   * ClusterTraceBricks
     * 处理Cluster中的Brick，计算Brick在屏幕上的大小，然后处理覆盖的Pixels
-    * 如果有Skinning，这里会根据Transform变换Brick的Tracing Raster
+    * 如果有Skinning，这里会根据Transform变换Brick的Tracing Ray
     * ![20250909220409](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909220409.png)
     * 这里还通过Group Shared Memory以及Wave Instrinsics做了一个Group内的任务队列，来提升并行效率
     * ![20250909224022](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250909224022.png)
@@ -285,7 +289,7 @@ UE实现中，这部分材质被归为PixelProgrammable，目前Masking、PixelD
 对于Skinned Mesh，除了Raster Binning需要单独处理之外，在裁剪剔除的时候也做了一些Hack，目前为了保证Cluster不会被错误剔除，Nanite会将Skinned Mesh的Cluster的Bounding Box直接扩大到整个Instance的Bounding Box，因为这样保证了子节点的Bounding Box始终是在父节点的Bounding Box内的，也就满足了Error的单调性，所以在LOD Selection的时候也依然可以得到正确的结果，但这种方式的问题就是会影响Culling的效率，所以目前Skinned Mesh的Nanite官方还是标注的Experimental
 ![20250528112051](https://image-1258012845.cos.ap-guangzhou.myqcloud.com/20250528112051.png)
 
-## Aggregate Meshes
+## Aggregate Meshes(Before 5.7)
 Aggregate Meshes是一类比较特殊的Mesh，是由很多小的部分组合而成，最典型的情况就是植被，每个叶片在经过简化之后，面积可能会非常小，视觉上就会变得非常稀疏
 
 目前UE的方案是提供Preseve Area的选项，在勾上之后，在Cluster构建的简化阶段，会根据Area重新调整简化后的三角面的坐标，保持三角面的面积一致
